@@ -1,0 +1,93 @@
+---
+title: "hh_txn"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+```
+
+## Notes from Eliza
+
+Parents collected saliva and nasal lining fluid once every 2 weeks for 6 months from themselves and their children. Week 0 is the first timepoint and then week 2, week 4 etc.. up to week 22 (12 timepoints in total). Each family has a study ID e.g. AH/034/001. Each member e.g. parent or child has an individual ID e.g. AH/034/001_1 or _2  etc.. and a SubMember ID e.g A or B etc.. We consider Spn positive those samples that had lytA and piaB positive and we populated the densities based on piaB. Densities are expressed as DNA copies/ mL.
+
+Comments
+Spn serotyping performed only in saliva samples by culture. Nasal lining fluid can't be cultured as we use a filter device to collect fluid (no added preservative) and based on our protocol we had to use all fluid pellet for DNA extractions. Spn present was confirmed by optochin and bile solubility test and serotype was performed by latex. Some samples were very difficult to isolate the pneumococcus from, as lots of other flora were covering the plates.
+
+Issues/advice
+We asked families to store saliva in 1 mL STGG. Saliva densities were normalised to the actual saliva volume on the tube (we measured the volume and extracted 1mL). We gave them a falcon tube to spit at home and a small tube with 1mL STGG and instructed them to add the STGG to the tube with the spit. However, we noticed that some families haven't closed the lid of the falcon tube properly thus we couldn't estimate how much saliva was actually in the tube. We left these densities blank (highlighted with blue). Suggestion?
+We extracted DNA/RNA together using the KingFisher automated system. SARSCoV2 RNA was detected in both saliva and nasal lining fluid samples using the genesig qPCR assay. The assay detects one gene. Do you think this will be ok or we should run a more specific assay detecting 3 genes?
+
+```{r}
+
+a1a <- read_excel('./Data/SPN data 001-020.xlsx')
+a1b <- read_excel('./Data/SPN data 021-041.xlsx')
+
+a1 <- bind_rows(a1a, a1b)
+
+a1$Saliva_density <- as.numeric(a1$Saliva_density)
+a1$Nasosorption_density <- as.numeric(a1$Nasosorption_density)
+
+
+a1$pos <- 1*((a1$Saliva_piaB + a1$Nasosorption_piaB)>0)
+```
+
+Positivity in parents and kids
+
+```{r}
+table(a1$pos, a1$Member)
+```
+
+Positivity in parents and kids...parents much higher on saliva than nasabsorption (3% vs 18%)
+
+```{r}
+table(a1$Saliva_piaB, a1$Member)
+table(a1$Nasosorption_piaB, a1$Member)
+
+```
+
+Concordance between saliva and nasabsorption
+
+```{r}
+table(a1$Saliva_piaB)
+table(a1$Nasosorption_piaB)
+table(a1$Saliva_piaB, a1$Nasosorption_piaB)
+```
+```{r}
+table(a1$HandSwab_piaB)
+
+```
+Density of pneumococcus in saliva vs nasosoption-
+
+```{r}
+plot(log(a1$Saliva_density), log(a1$Nasosorption_density))
+```
+
+
+
+```{r, fig.width=7, fig.height=5}
+b1 <- a1[, c('Family_ID','Individual_ID','Member', 'pos', 'Week')]
+
+b1 <- b1 %>%
+  group_by(Family_ID) %>%
+  mutate(new_id= paste0(Member, as.numeric(as.factor(Individual_ID))) ) %>%
+  arrange(new_id) %>%
+  mutate(FamN = as.numeric(as.factor(new_id)), pos=as.factor(pos) )%>%
+  ungroup() %>%
+  arrange(Family_ID,Member) 
+
+ggplot(b1, aes(Week, FamN, fill= pos)) + 
+  geom_tile() +
+   scale_fill_manual(name='Colonization', 
+                     labels=c('Uncolonized','Colonized'),
+                     values=c('0'= "darkgray",  '1'="#ff7f00")) +
+  facet_wrap(~Family_ID) +
+  theme_classic()
+  
+
+
+```
+
